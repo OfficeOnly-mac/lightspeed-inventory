@@ -16,7 +16,7 @@ class LIC_Cron_Manager {
     // Returns the next UTC timestamp for a given HH:MM time stored in UTC.
     public static function next_warm_timestamp( $time_utc ) {
         $today = strtotime( 'today ' . $time_utc . ' UTC' );
-        return $today < time() ? $today : strtotime( 'tomorrow ' . $time_utc . ' UTC' );
+        return $today <= time() ? strtotime( 'tomorrow ' . $time_utc . ' UTC' ) : $today;
     }
 
     // Schedules the daily full-cache warm cron if not already scheduled.
@@ -190,7 +190,10 @@ class LIC_Cron_Manager {
             $last_warmed = get_option( 'lic_cache_last_warmed_' . sanitize_key( $location_name ) );
             if ( empty( $last_warmed ) ) continue;
 
-            $since_ts    = strtotime( $last_warmed ) + 300;
+            // lic_cache_last_warmed_* is stored in site-local time; convert it to a real UTC
+            // timestamp before building the OData filter, otherwise sites west of UTC ask for
+            // updates that are still hours in the future and silently miss the newest changes.
+            $since_ts    = strtotime( get_gmt_from_date( $last_warmed ) . ' UTC' ) + 300;
             $since_odata = gmdate( "Y-m-d\TH:i:s", $since_ts );
 
             $creds      = lic_get_credentials( $location_name );
@@ -253,7 +256,9 @@ class LIC_Cron_Manager {
             foreach ( $existing as &$existing_item ) {
                 $sn = (string) ( $existing_item['StockNumber'] ?? '' );
                 if ( isset( $new_index[ $sn ] ) ) {
-                    $existing_item = array_merge( $new_index[ $sn ], $existing_item );
+                    // New values must win over the cached copy. Merging in the other order
+                    // made every refreshed field silently revert to its old value.
+                    $existing_item = array_merge( $existing_item, $new_index[ $sn ] );
                     unset( $new_index[ $sn ] );
                 }
             }
@@ -297,7 +302,7 @@ class LIC_Cron_Manager {
             $sn = (string) ( $item['StockNumber'] ?? '' );
             if ( $sn === '' ) continue;
             $lu = (string) ( $item['lastupdatedate'] ?? '' );
-            if ( ! isset( $best[ $sn ] ) || strcmp( $lu, $best[ $sn ]['lastupdatedate'] ) < 0 ) {
+            if ( ! isset( $best[ $sn ] ) || strcmp( $lu, $best[ $sn ]['lastupdatedate'] ) > 0 ) {
                 $best[ $sn ] = [
                     'lastupdatedate' => $lu,
                     'vin'            => (string) ( $item['VIN'] ?? '' ),
@@ -310,6 +315,11 @@ class LIC_Cron_Manager {
             if ( ! in_array( $data['unit_status'], self::SOLD_UNIT_STATUSES, true ) ) {
                 continue;
             }
+            // A stock number can be reused by a different vehicle after the original sells.
+            // Never let the old SoldUnit row trash the newer unit that now carries that number.
+            if ( $data['vin'] !== '' && ! self::sold_vin_matches_current_product( $sn, $data['vin'] ) ) {
+                continue;
+            }
             $result[] = [
                 'stock_number' => $sn,
                 'vin'          => $data['vin'],
@@ -317,6 +327,36 @@ class LIC_Cron_Manager {
             ];
         }
         return $result;
+    }
+
+    // True when the published product for this stock number is the same vehicle as the
+    // SoldUnit row, or when the product has no stored VIN to compare (legacy rows).
+    private static function sold_vin_matches_current_product( $stock_number, $vin ) {
+        global $wpdb;
+        $product_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT pm.post_id FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE pm.meta_key = '_sku' AND pm.meta_value = %s
+               AND p.post_type = 'product' AND p.post_status = 'publish'
+             LIMIT 1",
+            $stock_number
+        ) );
+        if ( ! $product_id ) {
+            return true;
+        }
+
+        $product_vins = $wpdb->get_col( $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->postmeta}
+             WHERE post_id = %d AND meta_key LIKE %s",
+            $product_id,
+            '%vin%'
+        ) );
+        $product_vins = array_filter( array_map( 'strval', (array) $product_vins ) );
+        if ( empty( $product_vins ) ) {
+            return true;
+        }
+
+        return in_array( (string) $vin, $product_vins, true );
     }
 
     // Polls SoldUnit for each location for units that appeared there since the last check, and
@@ -362,7 +402,9 @@ class LIC_Cron_Manager {
             $last_run    = get_option( $option_key );
             // First run for this location: look back 26 hours (one daily cycle + buffer)
             // instead of pulling all sold history.
-            $since_ts    = $last_run ? ( strtotime( $last_run ) - 300 ) : ( time() - 26 * HOUR_IN_SECONDS );
+            $since_ts    = $last_run
+                ? ( strtotime( get_gmt_from_date( $last_run ) . ' UTC' ) - 300 )
+                : ( time() - 26 * HOUR_IN_SECONDS );
             $since_odata = gmdate( "Y-m-d\TH:i:s", $since_ts );
 
             $request_url = add_query_arg( [
