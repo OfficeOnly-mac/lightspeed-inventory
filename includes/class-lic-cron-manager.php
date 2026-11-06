@@ -193,7 +193,9 @@ class LIC_Cron_Manager {
             // lic_cache_last_warmed_* is stored in site-local time; convert it to a real UTC
             // timestamp before building the OData filter, otherwise sites west of UTC ask for
             // updates that are still hours in the future and silently miss the newest changes.
-            $since_ts    = strtotime( get_gmt_from_date( $last_warmed ) . ' UTC' ) + 300;
+            // Overlap the window by five minutes because the warm can take a while and an item
+            // may change after its page was already fetched.
+            $since_ts    = strtotime( get_gmt_from_date( $last_warmed ) . ' UTC' ) - 300;
             $since_odata = gmdate( "Y-m-d\TH:i:s", $since_ts );
 
             $creds      = lic_get_credentials( $location_name );
