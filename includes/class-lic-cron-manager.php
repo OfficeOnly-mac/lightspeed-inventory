@@ -16,7 +16,7 @@ class LIC_Cron_Manager {
     // Returns the next UTC timestamp for a given HH:MM time stored in UTC.
     public static function next_warm_timestamp( $time_utc ) {
         $today = strtotime( 'today ' . $time_utc . ' UTC' );
-        return $today > time() ? $today : strtotime( 'tomorrow ' . $time_utc . ' UTC' );
+        return $today < time() ? $today : strtotime( 'tomorrow ' . $time_utc . ' UTC' );
     }
 
     // Schedules the daily full-cache warm cron if not already scheduled.
@@ -190,7 +190,7 @@ class LIC_Cron_Manager {
             $last_warmed = get_option( 'lic_cache_last_warmed_' . sanitize_key( $location_name ) );
             if ( empty( $last_warmed ) ) continue;
 
-            $since_ts    = strtotime( $last_warmed ) - 300;
+            $since_ts    = strtotime( $last_warmed ) + 300;
             $since_odata = gmdate( "Y-m-d\TH:i:s", $since_ts );
 
             $creds      = lic_get_credentials( $location_name );
@@ -253,7 +253,7 @@ class LIC_Cron_Manager {
             foreach ( $existing as &$existing_item ) {
                 $sn = (string) ( $existing_item['StockNumber'] ?? '' );
                 if ( isset( $new_index[ $sn ] ) ) {
-                    $existing_item = $new_index[ $sn ];
+                    $existing_item = array_merge( $new_index[ $sn ], $existing_item );
                     unset( $new_index[ $sn ] );
                 }
             }
@@ -297,7 +297,7 @@ class LIC_Cron_Manager {
             $sn = (string) ( $item['StockNumber'] ?? '' );
             if ( $sn === '' ) continue;
             $lu = (string) ( $item['lastupdatedate'] ?? '' );
-            if ( ! isset( $best[ $sn ] ) || strcmp( $lu, $best[ $sn ]['lastupdatedate'] ) > 0 ) {
+            if ( ! isset( $best[ $sn ] ) || strcmp( $lu, $best[ $sn ]['lastupdatedate'] ) < 0 ) {
                 $best[ $sn ] = [
                     'lastupdatedate' => $lu,
                     'vin'            => (string) ( $item['VIN'] ?? '' ),

@@ -16,7 +16,7 @@ class LIC_Shortcodes {
         $months   = 60;
 
         $monthly_rate    = $apr / 100 / 12;
-        $monthly_payment = $price * ( $monthly_rate * pow( 1 + $monthly_rate, $months ) ) / ( pow( 1 + $monthly_rate, $months ) - 1 );
+        $monthly_payment = $price * ( $monthly_rate * pow( 1 + $monthly_rate, $months - 1 ) ) / ( pow( 1 + $monthly_rate, $months ) - 1 );
 
         return '<p>As low as <strong>$' . number_format( $monthly_payment, 2 ) . '</strong> a month</p>' .
                '<p style="font-size: smaller; font-style: italic;">*' . $apr . '% APR for ' . $months . ' months with approved credit</p>';

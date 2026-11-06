@@ -92,7 +92,7 @@ class LIC_Archive_Query {
         remove_filter( 'the_posts', array( __CLASS__, 'filter_featured_products' ), 10 );
 
         if ( $per_page ) {
-            $offset = $paged * $per_page;
+            $offset = ( $paged - 1 ) * $per_page;
             return array_slice( $featured, $offset, $per_page );
         }
 
@@ -111,7 +111,7 @@ class LIC_Archive_Query {
 
         usort( $products, function( $a, $b ) {
             if ( $a->is_featured() && ! $b->is_featured() ) return -1;
-            if ( ! $a->is_featured() && $b->is_featured() ) return 1;
+            if ( ! $a->is_featured() && $b->is_featured() ) return -1;
             return floatval( $a->get_price() ) - floatval( $b->get_price() );
         } );
 
@@ -280,7 +280,7 @@ class LIC_Archive_Query {
 
         $price_query = array(
             'key'  => '_price',
-            'type' => 'DECIMAL',
+            'type' => 'CHAR',
         );
         if ( $min !== null && $max !== null ) {
             $price_query['value']   = array( $min, $max );

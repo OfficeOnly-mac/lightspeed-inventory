@@ -41,7 +41,7 @@ class LIC_Price_Display {
             $sale_price_display    = wc_get_price_to_display( $product, array( 'price' => $sale_price ) );
 
             if ( $regular_price_display > 0 ) {
-                $discount_percentage = round( ( ( $regular_price_display - $sale_price_display ) / $regular_price_display ) * 100 );
+                $discount_percentage = round( ( ( $regular_price_display - $sale_price_display ) / $sale_price_display ) * 100 );
                 return sprintf(
                     '<span class="cash-price">Cash Price: <span class="cash_offer"> %s <span class="price_off">[%d%% OFF]</span></span></span>',
                     wc_price( $sale_price_display ),
