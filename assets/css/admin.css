@@ -1,0 +1,438 @@
+
+/* API Credentials Setting Page CSS */
+.form-table input[type="text"], input[type="checkbox"],  button.delete_location_button, button.saved_delete_location_button, button.save_location_with_cred_button, #add_location_button, button#delete_location_button {
+    margin: 5px;
+}
+.api_url_field{
+    width:40%;
+}
+form.setting_page table tbody tr th[scope="row"] {
+    display: none;
+}
+div#locations_container {
+    display: flex;
+    flex-wrap: wrap;
+}
+.location-row input[type="text"] {
+    width: 98%;
+}
+.location-row {
+    padding: 10px;
+    width: 19%;
+    margin: 1%;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.location_name {
+    margin: 9px;
+    font-size: 16px;
+}
+
+input.use-sandbox-checkbox {
+    margin-bottom: 10px;
+}
+
+button.delete_location_button,button.saved_delete_location_button, button#delete_location_button  {
+    background: #b12222;
+    padding: 10px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button.delete_location_button:hover, button.saved_delete_location_button:hover, button#delete_location_button:hover {
+    background: #ff4d4d;
+}
+button.save_location_with_cred_button, #add_location_button {
+    background: #2270b1;
+    padding: 10px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button.save_location_with_cred_button:hover, #add_location_button:hover {
+    background: #0061b2;
+}
+
+
+/* Filed Setting Page */
+.mapper-container {
+    display: flex;
+    justify-content: space-around;
+}
+
+.mapper-section {
+    width: 45%;
+    margin-bottom: 20px;
+}
+
+.mapper-section h2 {
+    margin-bottom: 10px;
+}
+
+.mapper-section form {
+    border: 1px solid #ccc;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+.mapper-section fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.mapper-section legend {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.mapper-section select {
+    /* width: 100%; */
+    /* height: 150px; */
+    margin-bottom: 10px;
+}
+.left_api_fileds{
+    display: flex;
+}
+
+.mapper-section input[type="submit"] {
+    margin-top: 10px;
+}
+
+/* Filed Mapping Page */
+.LIC_field_btn, .LIC_reset_btn {
+    background: #2270b1;
+    padding: 10px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.LIC_field_btn:hover, .LIC_reset_btn:hover {
+    background: #2270b1a1;
+    padding: 10px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.reset_img:hover{
+    color:white;
+}
+
+button.remove-btn {
+    background: #2270b1;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button.remove-btn:hover {
+    background: #2270b1a1;
+    color: rgb(241, 59, 59);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Loader */
+#upload_image_button span.dot {
+    background: #2271b1;
+}
+
+#delete_image_button span.dot {
+    background: #cc1c1c;
+    /* animation-delay: -0.25s; */
+}
+.loader {
+    display: flex;
+    column-gap: 10px;
+  }
+  
+  .dot {
+  margin-top: -8px;
+    height: 10px;
+    width: 10px;
+    border-radius: 50%;
+    background: #008ae6;
+    box-shadow: 0 5px 10px rgba(255, 255, 255, 0.01);
+    animation: animate 1s ease-in-out infinite alternate;
+  }
+  
+  .dot:nth-child(1){
+    background: white;
+    animation-delay: -0.25s;
+  }
+  
+  .dot:nth-child(2){
+    background: white;
+    animation-delay: -0.5s;
+  }
+  
+  .dot:nth-child(3){
+    background: white;
+    animation-delay: -0.75s;
+  }
+  
+  .dot:nth-child(4){
+    background: white;
+    animation-delay: -1s;
+  }
+  
+  @keyframes animate {
+    0% {
+      transform: translateY(-10px);
+    }
+    100% {
+      transform: translateY(5px);
+    }
+  }
+  
+
+  /* 09 July */
+.top-text{
+    text-align: center;
+}
+.container {
+    display: flex;
+    flex-direction: column;
+}
+
+.fields-container {
+    display: flex;
+    justify-content: space-between;
+}
+.fields-group {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+}
+.acf-fields-group {
+    display: flex;
+    flex-direction: column;
+    width: 40%;
+}
+select.acf-api-select.api_fields_container {
+    width: 100%;
+}
+.fields-group-header {
+    display: flex;
+    margin-bottom: 6px;
+}
+.fields-group-header span {
+    flex: 1;
+    font-weight: 600;
+}
+.field-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+.field-row .wc-label,
+.field-row .acf-label {
+    flex: 1;
+    line-height: 28px;
+    padding-right: 12px;
+}
+.field-row .api-select,
+.field-row .url-structure,
+.field-row .acf-api-select {
+    flex: 1;
+}
+
+.wc-label {
+    flex: 1;
+    margin-right: 10px;
+}
+
+.api-select {
+    flex: 1;
+}
+
+.LIC_field_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* Sold Out Product Page */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 5px;
+}
+
+.product-item {
+    text-align: center;
+}
+
+.product-item img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 22 July */
+#days_to_keep_field::-webkit-outer-spin-button,
+#days_to_keep_field::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Hide the spinner (up/down arrows) in Firefox */
+#days_to_keep_field {
+    -moz-appearance: textfield;
+}
+
+/* 24 July */
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #c3e6cb;
+    margin-bottom: 20px;
+    width: 40%;
+}
+
+
+
+
+/*  Custom Title Css For Mapped Filed */
+.url-structure {
+    /* margin: 20px; */
+    /* overflow: auto; */
+}
+
+.url-structure #permalink-input {
+    width: 100%;
+    /* padding: 10px; */
+    /* font-size: 16px; */
+    /* margin-bottom: 10px; */
+    /* border: 1px solid #ccc; */
+    border-radius: 4px;
+}
+
+.available-tags {
+    width: 350px;
+    display: flex;
+    overflow: auto;
+    /* flex-wrap: wrap; */
+}
+
+.available-tags .tag {
+    background-color: #dee2eb;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    margin: 1px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+
+.available-tags .tag:hover {
+    background-color: #e0e0e0;
+}
+
+.tag.disabled {
+    background-color: #dcdcdc;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Image Report */
+.lic-ir-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 12px 0 8px;
+    gap: 10px;
+}
+.lic-ir-filter,
+.lic-ir-perpage {
+    display: flex;
+    gap: 6px;
+}
+.lic-ir-table th a {
+    color: #1d2327;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.lic-ir-table th a:hover {
+    color: #2271b1;
+}
+.lic-ir-mismatch td {
+    background-color: #fff8f0;
+}
+.lic-ir-summary {
+    margin: 14px 0;
+    padding: 10px 14px;
+    background: #f6f7f7;
+    border-left: 4px solid #2271b1;
+    font-size: 14px;
+}
+.lic-ir-red   { color: #b32d2e; }
+.lic-ir-green { color: #2a6b2a; }
+.lic-ir-detail-grid {
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
+    align-items: flex-start;
+}
+.lic-ir-col {
+    flex: 1;
+    min-width: 0;
+}
+.lic-ir-thumb-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+}
+.lic-ir-thumb {
+    position: relative;
+    width: 140px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f6f7f7;
+}
+.lic-ir-thumb img {
+    display: block;
+    width: 140px;
+    height: 105px;
+    object-fit: cover;
+}
+.lic-ir-no-img {
+    width: 140px;
+    height: 105px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #666;
+}
+.lic-ir-extra,
+.lic-ir-missing {
+    border-color: #b32d2e;
+}
+.lic-ir-badge {
+    display: block;
+    font-size: 10px;
+    padding: 2px 6px;
+    background: #2271b1;
+    color: #fff;
+    text-align: center;
+    line-height: 1.4;
+}
+.lic-ir-badge-red   { background: #b32d2e; }
+.lic-ir-badge-green { background: #2a6b2a; }
+
