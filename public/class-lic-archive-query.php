@@ -52,7 +52,7 @@ class LIC_Archive_Query {
             $tax_query   = is_array( $tax_query ) ? $tax_query : array();
             $tax_query[] = array(
                 'taxonomy' => 'product_visibility',
-                'field'    => 'name',
+                'field'    => 'slug',
                 'terms'    => array( 'featured' ),
                 'operator' => 'IN',
             );
@@ -226,7 +226,7 @@ class LIC_Archive_Query {
         }
         $args['tax_query'][] = array(
             'taxonomy' => 'product_visibility',
-            'field'    => 'name',
+            'field'    => 'slug',
             'terms'    => array( 'featured' ),
             'operator' => 'IN',
         );
