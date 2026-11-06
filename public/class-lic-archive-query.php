@@ -8,6 +8,7 @@ class LIC_Archive_Query {
         // the catalog page size for product archives. The featured archive replaces
         // those args with its own paginated SQL query below.
         add_action( 'pre_get_posts', array( __CLASS__, 'featured_archive_query' ), 999 );
+        add_action( 'pre_get_posts', array( __CLASS__, 'normalize_featured_pagination' ), PHP_INT_MAX );
         add_action( 'pre_get_posts', array( __CLASS__, 'apply_price_filter_to_product_queries' ), 1000 );
         add_filter( 'posts_clauses', array( __CLASS__, 'order_product_queries' ), 20, 2 );
         add_action( 'woocommerce_product_query', array( __CLASS__, 'apply_price_sort_and_filter' ), 20 );
@@ -35,11 +36,16 @@ class LIC_Archive_Query {
         }
         $is_featured = intval( get_query_var( 'featured_archive', 0 ) );
         if ( $is_featured ) {
-            $per_page = 10;
+            $per_page = self::featured_per_page();
+            $paged    = max( 1, intval( get_query_var( 'paged' ) ) );
             $query->set( 'post_type', 'product' );
             $query->set( 'posts_per_page', $per_page );
             $query->set( 'nct_fp_per_page', $per_page );
-            $query->set( 'paged', max( 1, intval( get_query_var( 'paged' ) ) ) );
+            $query->set( 'paged', $paged );
+            // Clear any offset left on the query. WP_Query ignores `paged` whenever
+            // `offset` is set, so a stale offset of one page starts page 1 at the
+            // second page of results and pushes the final page past the last row.
+            $query->set( 'offset', 0 );
             $query->is_archive           = true;
             $query->is_post_type_archive = true;
 
@@ -58,6 +64,33 @@ class LIC_Archive_Query {
             );
             $query->set( 'tax_query', $tax_query );
         }
+    }
+
+    /**
+     * Re-assert the featured archive pagination after every other callback has run.
+     * WooCommerce restores the catalog page size and themes often carry a paged
+     * offset over from the shop query; either one silently desynchronises the SQL
+     * LIMIT from the pagination links, which drops the first products from page 1
+     * and leaves the final page empty.
+     */
+    public static function normalize_featured_pagination( $query ) {
+        if ( is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+        if ( ! intval( get_query_var( 'featured_archive', 0 ) ) ) {
+            return;
+        }
+        $per_page = self::featured_per_page();
+        $query->set( 'posts_per_page', $per_page );
+        $query->set( 'nct_fp_per_page', $per_page );
+        $query->set( 'paged', max( 1, intval( get_query_var( 'paged' ) ) ) );
+        $query->set( 'offset', 0 );
+        $query->set( 'no_found_rows', false );
+    }
+
+    public static function featured_per_page() {
+        $per_page = intval( apply_filters( 'lic_featured_per_page', 10 ) );
+        return $per_page > 0 ? $per_page : 10;
     }
 
     public static function order_product_queries( $clauses, $query ) {
@@ -172,10 +205,21 @@ class LIC_Archive_Query {
         return $meta_query;
     }
 
+    private static function normalize_builder_pagination( $query ) {
+        $paged = max( 1, intval( get_query_var( 'paged' ) ) );
+        if ( $query->get( 'offset' ) ) {
+            $query->set( 'offset', 0 );
+        }
+        if ( ! $query->get( 'paged' ) ) {
+            $query->set( 'paged', $paged );
+        }
+    }
+
     public static function apply_elementor_trailer_loop( $q ) {
         $q->set( 'orderby', 'meta_value_num' );
         $q->set( 'order', 'ASC' );
         $q->set( 'meta_key', '_price' );
+        self::normalize_builder_pagination( $q );
 
         $price_query = self::get_price_filter_meta_query();
         if ( $price_query ) {
@@ -208,6 +252,11 @@ class LIC_Archive_Query {
         $args['orderby']  = 'meta_value_num';
         $args['meta_key'] = '_price';
         $args['order']    = 'ASC';
+
+        // Same paging fix as the Elementor loop: let `paged` drive the LIMIT instead
+        // of a carried-over offset, which shifted page 1 by a whole page.
+        unset( $args['offset'] );
+        $args['paged'] = max( 1, intval( get_query_var( 'paged' ) ) );
 
         $price_query = self::get_price_filter_meta_query();
         if ( $price_query ) {
