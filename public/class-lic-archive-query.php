@@ -6,7 +6,7 @@ class LIC_Archive_Query {
         add_action( 'init', array( __CLASS__, 'register_featured_archive_rule' ) );
         add_action( 'pre_get_posts', array( __CLASS__, 'featured_archive_query' ), 1 );
         add_action( 'pre_get_posts', array( __CLASS__, 'apply_price_filter_to_product_queries' ), 999 );
-        add_filter( 'woocommerce_product_loop_start', array( __CLASS__, 'sort_loop_featured_first' ) );
+        add_filter( 'posts_clauses', array( __CLASS__, 'order_product_queries' ), 20, 2 );
         add_action( 'woocommerce_product_query', array( __CLASS__, 'apply_price_sort_and_filter' ), 20 );
         add_action( 'elementor/query/trailer_loop', array( __CLASS__, 'apply_elementor_trailer_loop' ) );
         add_filter( 'shopengine/query/main_query_args', array( __CLASS__, 'apply_shopengine_query_args' ) );
@@ -92,34 +92,86 @@ class LIC_Archive_Query {
         remove_filter( 'the_posts', array( __CLASS__, 'filter_featured_products' ), 10 );
 
         if ( $per_page ) {
-            $offset = ( $paged - 1 ) * $per_page;
+            $offset = $paged * $per_page;
             return array_slice( $featured, $offset, $per_page );
         }
 
         return $featured;
     }
 
-    // Sort product category loops: featured first, then price ASC
-    public static function sort_loop_featured_first( $html ) {
-        global $wp_query;
-        if ( ! is_product_category() ) {
-            return $html;
+    // Order every product query on a shop/category/tag archive: featured first, then
+    // price ASC, then post ID. Doing this in SQL rather than sorting the posts returned
+    // for the current page is what keeps featured trailers on page 1 instead of leaving
+    // them buried on whichever page their price happened to land on. The final ID sort
+    // makes ties deterministic so the order no longer changes between refreshes.
+    public static function order_product_queries( $clauses, $query ) {
+        if ( is_admin() || ! $query instanceof WP_Query ) {
+            return $clauses;
         }
-        $products = array_map( function( $post ) {
-            return wc_get_product( $post->ID );
-        }, $wp_query->posts );
+        if ( ! self::is_product_archive_context() ) {
+            return $clauses;
+        }
 
-        usort( $products, function( $a, $b ) {
-            if ( $a->is_featured() && ! $b->is_featured() ) return -1;
-            if ( ! $a->is_featured() && $b->is_featured() ) return -1;
-            return floatval( $a->get_price() ) - floatval( $b->get_price() );
-        } );
+        $post_type = $query->get( 'post_type' );
+        $is_product_query = $post_type === 'product'
+            || ( is_array( $post_type ) && in_array( 'product', $post_type, true ) )
+            || ( $query->is_main_query() && ( is_shop() || is_product_category() || is_product_tag() ) );
+        if ( ! $is_product_query ) {
+            return $clauses;
+        }
 
-        $wp_query->posts = array_map( function( $product ) {
-            return get_post( $product->get_id() );
-        }, $products );
+        global $wpdb;
+        $featured_sql = "EXISTS (
+            SELECT 1 FROM {$wpdb->term_relationships} lic_tr
+            INNER JOIN {$wpdb->term_taxonomy} lic_tt ON lic_tt.term_taxonomy_id = lic_tr.term_taxonomy_id
+            INNER JOIN {$wpdb->terms} lic_t ON lic_t.term_id = lic_tt.term_id
+            WHERE lic_tr.object_id = {$wpdb->posts}.ID
+              AND lic_tt.taxonomy = 'product_visibility'
+              AND lic_t.slug = 'featured'
+        )";
+        $price_sql = "COALESCE((
+            SELECT MIN(CAST(lic_price.meta_value AS DECIMAL(10,2)))
+            FROM {$wpdb->postmeta} lic_price
+            WHERE lic_price.post_id = {$wpdb->posts}.ID
+              AND lic_price.meta_key = '_price'
+        ), 999999999)";
 
-        return $html;
+        $clauses['orderby'] = "{$featured_sql} DESC, {$price_sql} ASC, {$wpdb->posts}.ID ASC";
+
+        $bounds = self::get_price_filter_bounds();
+        if ( $bounds ) {
+            list( $min, $max ) = $bounds;
+            $price_where = "EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} lic_filter_price
+                WHERE lic_filter_price.post_id = {$wpdb->posts}.ID
+                  AND lic_filter_price.meta_key = '_price'";
+            if ( $min !== null && $max !== null ) {
+                $price_where .= $wpdb->prepare(
+                    ' AND CAST(lic_filter_price.meta_value AS DECIMAL(10,2)) BETWEEN %f AND %f',
+                    $min,
+                    $max
+                );
+            } elseif ( $min !== null ) {
+                $price_where .= $wpdb->prepare(
+                    ' AND CAST(lic_filter_price.meta_value AS DECIMAL(10,2)) >= %f',
+                    $min
+                );
+            } else {
+                $price_where .= $wpdb->prepare(
+                    ' AND CAST(lic_filter_price.meta_value AS DECIMAL(10,2)) <= %f',
+                    $max
+                );
+            }
+            $price_where .= ')';
+            $clauses['where'] .= ' AND ' . $price_where;
+        }
+
+        return $clauses;
+    }
+
+    // True while rendering a page whose product listings should be featured-first.
+    private static function is_product_archive_context() {
+        return is_shop() || is_product_category() || is_product_tag() || is_post_type_archive( 'product' );
     }
 
     // Force price ASC sort and apply min/max price filter on WooCommerce product queries
@@ -132,19 +184,7 @@ class LIC_Archive_Query {
         $price_query = self::get_price_filter_meta_query();
         if ( ! $price_query ) return;
 
-        $meta_query      = $q->get( 'meta_query' );
-        $meta_query      = is_array( $meta_query ) ? $meta_query : array();
-        $has_price_query = false;
-        foreach ( $meta_query as $mq ) {
-            if ( is_array( $mq ) && isset( $mq['key'] ) && $mq['key'] === '_price' ) {
-                $has_price_query = true;
-                break;
-            }
-        }
-        if ( ! $has_price_query ) {
-            $meta_query[] = $price_query;
-            $q->set( 'meta_query', $meta_query );
-        }
+        $q->set( 'meta_query', self::set_price_meta_query( $q->get( 'meta_query' ), $price_query ) );
     }
 
     // Apply min_price/max_price to any front-end product query (catches Elementor/ShopEngine loops)
@@ -170,21 +210,23 @@ class LIC_Archive_Query {
         }
         if ( ! $is_product_query ) return;
 
-        $meta_query = $query->get( 'meta_query' );
-        $meta_query = is_array( $meta_query ) ? $meta_query : array();
+        $meta_query = self::set_price_meta_query( $query->get( 'meta_query' ), $price_query );
+        $query->set( 'meta_query', $meta_query );
+    }
 
-        $has_price_query = false;
-        foreach ( $meta_query as $index => $mq ) {
-            if ( is_array( $mq ) && isset( $mq['key'] ) && $mq['key'] === '_price' ) {
+    // Replaces any existing _price clause instead of appending a second one. A stale
+    // clause left by another filter (often CHAR-typed or using an old bound) would
+    // otherwise sit alongside the correct one and make the range behave unpredictably.
+    private static function set_price_meta_query( $meta_query, $price_query ) {
+        $meta_query = is_array( $meta_query ) ? $meta_query : array();
+        foreach ( $meta_query as $index => $clause ) {
+            if ( is_array( $clause ) && isset( $clause['key'] ) && $clause['key'] === '_price' ) {
                 $meta_query[ $index ] = $price_query;
-                $has_price_query      = true;
-                break;
+                return $meta_query;
             }
         }
-        if ( ! $has_price_query ) {
-            $meta_query[] = $price_query;
-        }
-        $query->set( 'meta_query', $meta_query );
+        $meta_query[] = $price_query;
+        return $meta_query;
     }
 
     // Apply price ASC sort, price filter, and featured-first sort to Elementor trailer_loop queries
@@ -195,30 +237,22 @@ class LIC_Archive_Query {
 
         $price_query = self::get_price_filter_meta_query();
         if ( $price_query ) {
-            $meta_query      = $q->get( 'meta_query' );
-            $meta_query      = is_array( $meta_query ) ? $meta_query : array();
-            $has_price_query = false;
-            foreach ( $meta_query as $mq ) {
-                if ( is_array( $mq ) && isset( $mq['key'] ) && $mq['key'] === '_price' ) {
-                    $has_price_query = true;
-                    break;
-                }
-            }
-            if ( ! $has_price_query ) {
-                $meta_query[] = $price_query;
-                $q->set( 'meta_query', $meta_query );
-            }
+            $q->set( 'meta_query', self::set_price_meta_query( $q->get( 'meta_query' ), $price_query ) );
         }
 
         add_filter( 'the_posts', function( $posts ) {
             $products = array();
             foreach ( $posts as $post ) {
-                $products[] = wc_get_product( $post->ID );
+                $product = wc_get_product( $post->ID );
+                if ( $product ) {
+                    $products[] = $product;
+                }
             }
             usort( $products, function( $a, $b ) {
                 if ( $a->is_featured() && ! $b->is_featured() ) return -1;
                 if ( ! $a->is_featured() && $b->is_featured() ) return 1;
-                return floatval( $a->get_price() ) - floatval( $b->get_price() );
+                $diff = floatval( $a->get_price() ) - floatval( $b->get_price() );
+                return $diff ? ( $diff < 0 ? -1 : 1 ) : $a->get_id() - $b->get_id();
             } );
             $sorted = array();
             foreach ( $products as $product ) {
@@ -236,18 +270,7 @@ class LIC_Archive_Query {
 
         $price_query = self::get_price_filter_meta_query();
         if ( $price_query ) {
-            $meta_query      = isset( $args['meta_query'] ) && is_array( $args['meta_query'] ) ? $args['meta_query'] : array();
-            $has_price_query = false;
-            foreach ( $meta_query as $mq ) {
-                if ( is_array( $mq ) && isset( $mq['key'] ) && $mq['key'] === '_price' ) {
-                    $has_price_query = true;
-                    break;
-                }
-            }
-            if ( ! $has_price_query ) {
-                $meta_query[]       = $price_query;
-                $args['meta_query'] = $meta_query;
-            }
+            $args['meta_query'] = self::set_price_meta_query( $args['meta_query'] ?? array(), $price_query );
         }
 
         if ( ! isset( $args['tax_query'] ) ) {
@@ -265,22 +288,15 @@ class LIC_Archive_Query {
 
     // Build a _price meta_query from min_price/max_price query string params; returns null if no filter
     public static function get_price_filter_meta_query() {
-        $min_raw = isset( $_GET['min_price'] ) ? wp_unslash( $_GET['min_price'] ) : null;
-        $max_raw = isset( $_GET['max_price'] ) ? wp_unslash( $_GET['max_price'] ) : null;
-
-        $min = is_numeric( $min_raw ) ? (float) $min_raw : null;
-        $max = is_numeric( $max_raw ) ? (float) $max_raw : null;
-
-        if ( $min === null && $max === null ) {
+        $bounds = self::get_price_filter_bounds();
+        if ( ! $bounds ) {
             return null;
         }
-        if ( $min !== null && $max !== null && $min > $max ) {
-            list( $min, $max ) = array( $max, $min );
-        }
+        list( $min, $max ) = $bounds;
 
         $price_query = array(
             'key'  => '_price',
-            'type' => 'CHAR',
+            'type' => 'NUMERIC',
         );
         if ( $min !== null && $max !== null ) {
             $price_query['value']   = array( $min, $max );
@@ -294,5 +310,33 @@ class LIC_Archive_Query {
         }
 
         return $price_query;
+    }
+
+    // Reads min_price/max_price and returns [min, max] as floats (either may be null),
+    // or null when neither is present. Currency formatting such as "$5,000" is
+    // normalised first so the value is compared as a number, not as a string.
+    private static function get_price_filter_bounds() {
+        $min = self::parse_price_param( 'min_price' );
+        $max = self::parse_price_param( 'max_price' );
+
+        if ( $min === null && $max === null ) {
+            return null;
+        }
+        if ( $min !== null && $max !== null && $min > $max ) {
+            list( $min, $max ) = array( $max, $min );
+        }
+        return array( $min, $max );
+    }
+
+    private static function parse_price_param( $key ) {
+        if ( ! isset( $_GET[ $key ] ) ) {
+            return null;
+        }
+        $raw = wp_unslash( $_GET[ $key ] );
+        if ( is_array( $raw ) ) {
+            return null;
+        }
+        $clean = preg_replace( '/[^0-9.\-]/', '', (string) $raw );
+        return is_numeric( $clean ) ? (float) $clean : null;
     }
 }
