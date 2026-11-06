@@ -4,8 +4,13 @@ class LIC_Archive_Query {
 
     public static function init() {
         add_action( 'init', array( __CLASS__, 'register_featured_archive_rule' ) );
-        add_action( 'pre_get_posts', array( __CLASS__, 'featured_archive_query' ), 1 );
-        add_action( 'pre_get_posts', array( __CLASS__, 'apply_price_filter_to_product_queries' ), 999 );
+        // Must run after WooCommerce's WC_Query::product_query (priority 10), which
+        // replaces posts_per_page with the catalog page size. If that overwrites our
+        // -1, filter_featured_products only sees the current catalog page and slices
+        // it again, which is what dropped the first featured trailers and emptied the
+        // last page while the total count still looked right.
+        add_action( 'pre_get_posts', array( __CLASS__, 'featured_archive_query' ), 999 );
+        add_action( 'pre_get_posts', array( __CLASS__, 'apply_price_filter_to_product_queries' ), 1000 );
         add_filter( 'posts_clauses', array( __CLASS__, 'order_product_queries' ), 20, 2 );
         add_action( 'woocommerce_product_query', array( __CLASS__, 'apply_price_sort_and_filter' ), 20 );
         add_action( 'elementor/query/trailer_loop', array( __CLASS__, 'apply_elementor_trailer_loop' ) );
