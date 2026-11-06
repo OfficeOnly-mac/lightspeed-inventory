@@ -92,7 +92,7 @@ class LIC_Archive_Query {
         remove_filter( 'the_posts', array( __CLASS__, 'filter_featured_products' ), 10 );
 
         if ( $per_page ) {
-            $offset = $paged * $per_page;
+            $offset = ( $paged - 1 ) * $per_page;
             return array_slice( $featured, $offset, $per_page );
         }
 
