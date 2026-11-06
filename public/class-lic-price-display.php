@@ -26,35 +26,39 @@ class LIC_Price_Display {
         if ( ! $product instanceof WC_Product ) {
             return $price_html;
         }
+
         $regular_price = $product->get_regular_price();
-        $sale_price    = $product->get_sale_price();
+        // get_price() is the active price (it already respects an expired or scheduled
+        // sale). get_sale_price() alone would show a discount badge for a sale that is
+        // not actually in effect, and for a wrong percentage once the sale ends.
+        $current_price = $product->get_price();
 
-        if ( $regular_price && ! $sale_price ) {
-            return sprintf(
-                '<span class="cash-price">Cash Price: <span class="cash_offer"> %s </span></span>',
-                wc_price( wc_get_price_to_display( $product, array( 'price' => $regular_price ) ) )
-            );
-        } elseif ( ! $regular_price && ! $sale_price ) {
+        if ( ! $regular_price && ! $current_price ) {
             return '<span class="call-for-price">Call for price</span>';
-        } elseif ( $sale_price ) {
-            $regular_price_display = wc_get_price_to_display( $product, array( 'price' => $regular_price ) );
-            $sale_price_display    = wc_get_price_to_display( $product, array( 'price' => $sale_price ) );
-
-            if ( $regular_price_display > 0 ) {
-                $discount_percentage = round( ( ( $regular_price_display - $sale_price_display ) / $sale_price_display ) * 100 );
-                return sprintf(
-                    '<span class="cash-price">Cash Price: <span class="cash_offer"> %s <span class="price_off">[%d%% OFF]</span></span></span>',
-                    wc_price( $sale_price_display ),
-                    $discount_percentage
-                );
-            } else {
-                return sprintf(
-                    '<span class="cash-price">Cash Price: <span class="cash_offer"> %s </span></span>',
-                    wc_price( $sale_price_display )
-                );
-            }
         }
 
-        return $price_html;
+        if ( ! $regular_price ) {
+            return sprintf(
+                '<span class="cash-price">Cash Price: <span class="cash_offer"> %s </span></span>',
+                wc_price( wc_get_price_to_display( $product, array( 'price' => $current_price ) ) )
+            );
+        }
+
+        $regular_price_display = (float) wc_get_price_to_display( $product, array( 'price' => $regular_price ) );
+        $current_price_display = (float) wc_get_price_to_display( $product, array( 'price' => $current_price ) );
+
+        if ( $regular_price_display > 0 && $current_price_display > 0 && $current_price_display < $regular_price_display ) {
+            $discount_percentage = (int) round( ( ( $regular_price_display - $current_price_display ) / $regular_price_display ) * 100 );
+            return sprintf(
+                '<span class="cash-price">Cash Price: <span class="cash_offer"> %s <span class="price_off">[%d%% OFF]</span></span></span>',
+                wc_price( $current_price_display ),
+                $discount_percentage
+            );
+        }
+
+        return sprintf(
+            '<span class="cash-price">Cash Price: <span class="cash_offer"> %s </span></span>',
+            wc_price( $current_price_display > 0 ? $current_price_display : $regular_price_display )
+        );
     }
 }
