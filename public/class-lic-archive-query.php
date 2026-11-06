@@ -64,9 +64,6 @@ class LIC_Archive_Query {
         if ( is_admin() || ! $query instanceof WP_Query ) {
             return $clauses;
         }
-        if ( ! self::is_product_archive_context() ) {
-            return $clauses;
-        }
 
         $post_type = $query->get( 'post_type' );
         $is_product_query = $post_type === 'product'
@@ -123,10 +120,6 @@ class LIC_Archive_Query {
         }
 
         return $clauses;
-    }
-
-    private static function is_product_archive_context() {
-        return is_shop() || is_product_category() || is_product_tag() || is_post_type_archive( 'product' );
     }
 
     public static function apply_price_sort_and_filter( $q ) {
