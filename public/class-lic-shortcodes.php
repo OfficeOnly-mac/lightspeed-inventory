@@ -6,12 +6,12 @@ class LIC_Shortcodes {
         add_shortcode( 'monthly_financing', array( __CLASS__, 'monthly_financing' ) );
     }
 
-    // Outputs a monthly financing estimate based on the price the customer actually pays
+    // Outputs a monthly financing estimate based on the current product's regular price
     public static function monthly_financing( $atts ) {
         global $product;
         if ( ! $product instanceof WC_Product ) return '';
 
-        $price = (float) $product->get_price();
+        $price = (float) $product->get_regular_price();
         if ( $price <= 0 ) return '';
 
         $apr    = 8.99;
