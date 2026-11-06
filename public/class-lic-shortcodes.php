@@ -11,12 +11,14 @@ class LIC_Shortcodes {
         global $product;
         if ( ! $product instanceof WC_Product ) return '';
 
-        $price    = $product->get_regular_price();
-        $apr      = 8.99;
-        $months   = 60;
+        $price = (float) $product->get_regular_price();
+        if ( $price <= 0 ) return '';
+
+        $apr    = 8.99;
+        $months = 60;
 
         $monthly_rate    = $apr / 100 / 12;
-        $monthly_payment = $price * ( $monthly_rate * pow( 1 + $monthly_rate, $months - 1 ) ) / ( pow( 1 + $monthly_rate, $months ) - 1 );
+        $monthly_payment = $price * $monthly_rate * pow( 1 + $monthly_rate, $months ) / ( pow( 1 + $monthly_rate, $months ) - 1 );
 
         return '<p>As low as <strong>$' . number_format( $monthly_payment, 2 ) . '</strong> a month</p>' .
                '<p style="font-size: smaller; font-style: italic;">*' . $apr . '% APR for ' . $months . ' months with approved credit</p>';
