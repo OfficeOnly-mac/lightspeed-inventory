@@ -4,11 +4,9 @@ class LIC_Archive_Query {
 
     public static function init() {
         add_action( 'init', array( __CLASS__, 'register_featured_archive_rule' ) );
-        // Must run after WooCommerce's WC_Query::product_query (priority 10), which
-        // replaces posts_per_page with the catalog page size. If that overwrites our
-        // -1, filter_featured_products only sees the current catalog page and slices
-        // it again, which is what dropped the first featured trailers and emptied the
-        // last page while the total count still looked right.
+        // Run after WooCommerce's WC_Query::product_query (priority 10), which sets
+        // the catalog page size for product archives. The featured archive replaces
+        // those args with its own paginated SQL query below.
         add_action( 'pre_get_posts', array( __CLASS__, 'featured_archive_query' ), 999 );
         add_action( 'pre_get_posts', array( __CLASS__, 'apply_price_filter_to_product_queries' ), 1000 );
         add_filter( 'posts_clauses', array( __CLASS__, 'order_product_queries' ), 20, 2 );
@@ -37,68 +35,29 @@ class LIC_Archive_Query {
         }
         $is_featured = intval( get_query_var( 'featured_archive', 0 ) );
         if ( $is_featured ) {
+            $per_page = 10;
             $query->set( 'post_type', 'product' );
-            $query->set( 'posts_per_page', -1 );
-            $query->set( 'nct_fp_per_page', 10 );
+            $query->set( 'posts_per_page', $per_page );
+            $query->set( 'nct_fp_per_page', $per_page );
+            $query->set( 'paged', max( 1, intval( get_query_var( 'paged' ) ) ) );
             $query->is_archive           = true;
             $query->is_post_type_archive = true;
-            $query->set( 'paged', get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1 );
-            add_filter( 'the_posts', array( __CLASS__, 'filter_featured_products' ), 10, 2 );
-        }
-    }
 
-    public static function filter_featured_products( $posts, $query ) {
-        if ( is_admin() || ! $query->is_main_query() ) {
-            return $posts;
+            // Filter featured products in SQL rather than fetching every product and
+            // slicing the result afterwards. The old approach broke as soon as another
+            // pre_get_posts callback (WooCommerce sets the catalog page size at
+            // priority 10) changed posts_per_page, which dropped products from page 1
+            // and left the final page empty.
+            $tax_query   = $query->get( 'tax_query' );
+            $tax_query   = is_array( $tax_query ) ? $tax_query : array();
+            $tax_query[] = array(
+                'taxonomy' => 'product_visibility',
+                'field'    => 'name',
+                'terms'    => array( 'featured' ),
+                'operator' => 'IN',
+            );
+            $query->set( 'tax_query', $tax_query );
         }
-        $is_featured_flag = intval( $query->get( 'featured_archive' ) );
-        if ( ! $is_featured_flag ) {
-            $is_featured_flag = intval( get_query_var( 'featured_archive', 0 ) );
-        }
-        if ( ! $is_featured_flag || empty( $posts ) ) {
-            return $posts;
-        }
-
-        $featured = array();
-        foreach ( $posts as $post ) {
-            if ( function_exists( 'wc_get_product' ) ) {
-                $product = wc_get_product( $post->ID );
-                if ( $product && $product->is_featured() ) {
-                    $featured[] = $post;
-                }
-            } else {
-                if ( get_post_meta( $post->ID, '_featured', true ) === 'yes' ) {
-                    $featured[] = $post;
-                }
-            }
-        }
-
-        $paged    = max( 1, intval( get_query_var( 'paged' ) ) );
-        $per_page = intval( $query->get( 'nct_fp_per_page' ) );
-        if ( ! $per_page || $per_page < 1 ) {
-            $per_page = intval( get_query_var( 'posts_per_page' ) );
-        }
-        if ( ! $per_page || $per_page < 1 ) {
-            $per_page = intval( get_option( 'posts_per_page' ) );
-        }
-
-        $query->set( 'posts_per_page', $per_page );
-        $query->query_vars['posts_per_page'] = $per_page;
-
-        $total                   = count( $featured );
-        $query->found_posts      = $total;
-        $query->set( 'found_posts', $total );
-        $query->max_num_pages    = $per_page ? ceil( $total / $per_page ) : 1;
-        $query->set( 'max_num_pages', $query->max_num_pages );
-
-        remove_filter( 'the_posts', array( __CLASS__, 'filter_featured_products' ), 10 );
-
-        if ( $per_page ) {
-            $offset = ( $paged - 1 ) * $per_page;
-            return array_slice( $featured, $offset, $per_page );
-        }
-
-        return $featured;
     }
 
     public static function order_product_queries( $clauses, $query ) {
